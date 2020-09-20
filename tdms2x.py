@@ -44,7 +44,7 @@ Note:
        non-waveform data.
 
 Author: James Chang <twmr7@outlook.com>
-Date: 2020-07-08
+Date: 2020-09-20
 """
 import sys
 import numpy as np
@@ -95,6 +95,7 @@ def write_meta2file(input_file):
     """
     output_filename = Path(input_file).with_suffix('.info')
     result_code = 0
+    # TODO: use a Tee stream to duplicate the output to stdout and file.
     with open(output_filename, 'w', encoding='utf-8') as fout:
         result_code = print_metainfo(input_file, fout)
     return result_code
@@ -246,6 +247,23 @@ def save_array2mat(array, output_name, channel_names=[], dozip=False):
         datadict = {channel_names[n]: array[:,n] for n in range(array.shape[1])}
         sio.savemat(output_name, mdict=datadict, do_compression=dozip)
 
+def save_array2wav(array, output_name, rate=100000):
+    """save array to Matlab MAT file format
+
+    [Parameters]:
+        array - ndarray, channel data
+        output_name - str or list, the output file name
+        rate - sampling rate
+    """
+    from scipy.io import wavfile
+    if type(output_name) is list:
+        # split channels to multiple files
+        assert(len(output_name) == array.shape[1])
+        for n, fname in enumerate(output_name):
+            wavfile.write(fname, rate, array[:,n])
+    else:
+        print('Abort, please store one .wav file for each channel.', file=sys.stderr)
+
 def save_array2csv(array, output_name, channel_names=[], delimiter=' '):
     """save array to CSV file format
 
@@ -268,13 +286,14 @@ def save_array2csv(array, output_name, channel_names=[], delimiter=' '):
         np.savetxt(output_name, array, delimiter=delimiter,
                    header=delimiter.join(channel_names), comments='', encoding='utf-8')
 
-def write_array2file(array, output_name, channel_names=[], dozip=False):
+def write_array2file(array, output_name, channel_names=[], dozip=False, sampling_rate=100000):
     """export and write numpy array to specific file format.
 
     [Parameters]:
         array - ndarray, channel data
         output_name - str or list, the output file name
         channel_names - list of str, channel/title/column names
+        sampling_rate - the sampling rate for .wav file format
         dozip - bool, apply compression if supported
     """
     # save in a single file or split into multiple files
@@ -287,6 +306,8 @@ def write_array2file(array, output_name, channel_names=[], dozip=False):
         save_array2npy(array, output_name, channel_names, dozip) 
     elif output_format == '.mat':
         save_array2mat(array, output_name, channel_names, dozip) 
+    elif output_format == '.wav':
+        save_array2wav(array, output_name, sampling_rate) 
     elif output_format == '.csv':
         save_array2csv(array, output_name, channel_names) 
     else:
@@ -307,21 +328,22 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(prog='tdms2x', description='''
         *tdms2x* convert NI TDMS file to various other scientific data formats.
         ''')
-    parser.add_argument('-v','--version', action='version', version='%(prog)s 2020-07-08',
-                        help='display version number and exit.')
-    parser.add_argument('-d','--display_only', action='store_true',
-                        help='display file meta info to console and exit, no any file is saved.')
+    parser.add_argument('-v','--version', action='version', version='%(prog)s 2020-09-20',
+                        help='Display version number and exit.')
+    parser.add_argument('-d','--display_info', action='store_true',
+                        help='''Display meta info of the TDMS file to console, also save to file if
+                        -m option is also specified.''')
     parser.add_argument('input_path', metavar='PATH', type=str,
-                        help='path to a TDMS file or a folder contains plenty of it.')
+                        help='Path to a TDMS file or a folder contains plenty of it.')
     parser.add_argument('-m','--meta_save2file', action='store_true',
-                        help='also save meta file to a .info file.')
+                        help='Also save meta file to a .info file.')
     parser.add_argument('-c','--channel_selection', nargs='+', type=int, metavar=('0','1'),
                         help='''Option to output only those channels with index specified in the list.
                         Zero is the index to the first channel, and default is all selected.''')
     parser.add_argument('-t','--time_track', action='store_true',
-                        help='the output shall contain an additional time track column if available.')
+                        help='The output shall contain an additional time track column if available.')
     parser.add_argument('-z','--zip_compression', action='store_true',
-                        help='compress the output file if the output format supports this option.')
+                        help='Compress the output file if the output format supports this option.')
     parser.add_argument('-s','--split_file', action='store_true',
                         help='Split channels to save as separate files.')
     parser.add_argument('-n','--name_channel', nargs='+', type=str, metavar=('x','y'),
@@ -329,9 +351,12 @@ if __name__ == "__main__":
                         Default is to use the name from TDMS meta info. If option -t is specified,
                         the first name in the list is the name for time track. For those file formats
                         without annotation property, e.g. npy, channel names are silently ignored.''')
-    parser.add_argument('-o','--output_format', type=str, choices=['npy','mat','csv'], default='npy',
+    parser.add_argument('-o','--output_format', type=str, choices=['npy','mat','wav','csv'], default='npy',
                         help='''Select an output type from currently implemented formats. Default is
-                        to use "npy" format if this option is not specified.''')
+                        to use "npy" format if this option is missing. For "wav" file format, the
+                        -r option shall explicit specify and -s option is auto implied.''')
+    parser.add_argument('-r','--rate_sampling', type=int, metavar='Hz', default=100000,
+                        help='The sampling rate in Hz for .wav file format.')
 
     # parse command line arguments
     args = parser.parse_args()
@@ -355,9 +380,11 @@ if __name__ == "__main__":
     result_code = 0
     # iterating over all files
     for n, input_file in enumerate(tdms_files):
-        if args.display_only:
+        if args.display_info:
             # display TDMS meta file info
             result_code += print_metainfo(input_file)
+            if args.meta_save2file:
+                result_code += write_meta2file(input_file)
         else:
             print(' -- #{} file {}, start processing.'.format(n+1, input_file), flush=True)
             t_start = time.time()
@@ -371,8 +398,10 @@ if __name__ == "__main__":
             data, meta = read_tdms2array(input_file, args.channel_selection, args.time_track)
             # get proper output filename and header names
             channel_names = list() if args.name_channel is None else args.name_channel
+            if args.output_format == 'wav':
+                args.split_file = True
             file_name, channel_names = prepare_names(input_file, meta, channel_names, args.split_file, args.output_format)
-            write_array2file(data, file_name, channel_names, args.zip_compression)
+            write_array2file(data, file_name, channel_names, args.zip_compression, args.rate_sampling)
             print(' -- #{} file processing time {}sec.\n'.format(n+1, time.time() - t_start))
 
     # end of the main application

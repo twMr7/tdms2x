@@ -35,28 +35,28 @@ Under a normal console, enter `python tdms2x.py` followed by command-line option
 The usage message should look like this.
 ```
 usage: tdms2x [-h] [-v] [-d] [-m] [-c 0 [1 ...]] [-t] [-z] [-s] [-n x [y ...]]
-              [-o {npy,mat,csv}]
+              [-o {npy,mat,wav,csv}] [-r Hz]
               PATH
 
 *tdms2x* convert NI TDMS file to various other scientific data formats.
 
 positional arguments:
-  PATH                  path to a TDMS file or a folder contains plenty of it.
+  PATH                  Path to a TDMS file or a folder contains plenty of it.
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --version         display version number and exit.
-  -d, --display_only    display file meta info to console and exit, no any
-                        file is saved.
-  -m, --meta_save2file  also save meta file to a .info file.
+  -v, --version         Display version number and exit.
+  -d, --display_info    Display meta info of the TDMS file to console, also
+                        save to file if -m option is also specified.
+  -m, --meta_save2file  Also save meta file to a .info file.
   -c 0 [1 ...], --channel_selection 0 [1 ...]
                         Option to output only those channels with index
                         specified in the list. Zero is the index to the first
                         channel, and default is all selected.
-  -t, --time_track      the output shall contain an additional time track
+  -t, --time_track      The output shall contain an additional time track
                         column if available.
   -z, --zip_compression
-                        compress the output file if the output format supports
+                        Compress the output file if the output format supports
                         this option.
   -s, --split_file      Split channels to save as separate files.
   -n x [y ...], --name_channel x [y ...]
@@ -66,10 +66,13 @@ optional arguments:
                         name in the list is the name for time track. For those
                         file formats without annotation property, e.g. npy,
                         channel names are silently ignored.
-  -o {npy,mat,csv}, --output_format {npy,mat,csv}
+  -o {npy,mat,wav,csv}, --output_format {npy,mat,wav,csv}
                         Select an output type from currently implemented
                         formats. Default is to use "npy" format if this option
-                        is not specified.
+                        is missing. For "wav" file format, the -r option shall
+                        explicit specify and -s option is auto implied.
+  -r Hz, --rate_sampling Hz
+                        The sampling rate in Hz for .wav file format.
 ```
 
 ### Examples
