@@ -12,7 +12,7 @@ The original *tdms2mat* script and description can be found in ["tdms2mat"](tdms
 - python 3 (tested on 3.7)
 - nptdms (tested on 0.27.0)
 - numpy (for data readout and exporting to .npy and .npz file format)
-- scipy (for Matlab MAT file)
+- scipy (for Matlab MAT file and WAV sound file formats)
 
 ## Import as a Library
 
