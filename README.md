@@ -34,8 +34,8 @@ Under a normal console, enter `python tdms2x.py` followed by command-line option
 
 The usage message should look like this.
 ```
-usage: tdms2x [-h] [-v] [-d] [-m] [-c 0 [1 ...]] [-t] [-z] [-s] [-n x [y ...]]
-              [-o {npy,mat,wav,csv}] [-r Hz]
+usage: tdms2x [-h] [-d] [-i] [-m] [-s] [-t] [-v] [-z] [-c 0 [1 ...]]
+              [-n x [y ...]] [-o {npy,mat,wav,csv}] [-r Hz] [-x NAME]
               PATH
 
 *tdms2x* convert NI TDMS file to various other scientific data formats.
@@ -45,20 +45,22 @@ positional arguments:
 
 optional arguments:
   -h, --help            show this help message and exit
-  -v, --version         Display version number and exit.
   -d, --display_info    Display meta info of the TDMS file to console, also
                         save to file if -m option is also specified.
+  -i, --index_append    Append index instead of recording time to the output
+                        file name.
   -m, --meta_save2file  Also save meta file to a .info file.
+  -s, --split_file      Split channels to save as separate files.
+  -t, --time_track      The output shall contain an additional time track
+                        column if available.
+  -v, --version         Display version number and exit.
+  -z, --zip_compression
+                        Compress the output file if the output format supports
+                        this option.
   -c 0 [1 ...], --channel_selection 0 [1 ...]
                         Option to output only those channels with index
                         specified in the list. Zero is the index to the first
                         channel, and default is all selected.
-  -t, --time_track      The output shall contain an additional time track
-                        column if available.
-  -z, --zip_compression
-                        Compress the output file if the output format supports
-                        this option.
-  -s, --split_file      Split channels to save as separate files.
   -n x [y ...], --name_channel x [y ...]
                         Option to specify header names in the order of
                         selected channels. Default is to use the name from
@@ -73,6 +75,8 @@ optional arguments:
                         explicit specify and -s option is auto implied.
   -r Hz, --rate_sampling Hz
                         The sampling rate in Hz for .wav file format.
+  -x NAME, --xchange_basename NAME
+                        Replace original basename with a meaningful name.
 ```
 
 ### Examples

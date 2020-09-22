@@ -44,7 +44,7 @@ Note:
        non-waveform data.
 
 Author: James Chang <twmr7@outlook.com>
-Date: 2020-09-20
+Date: 2020-09-22
 """
 import sys
 import numpy as np
@@ -146,7 +146,13 @@ def read_tdms2array(input_file, channel_selection=[], time_track=False):
             meta_list.append(meta_info)
     return data_array, meta_list
 
-def prepare_names(input_file, meta_info, channel_names=[], split_file=False, extension='npy'):
+def prepare_names(input_file,
+                  meta_info,
+                  channel_names=[],
+                  split_file=False,
+                  extension='npy',
+                  append_index='',
+                  xchange_basename=''):
     """gather info and generate proper names for channels and output file.
 
     [Parameters]:
@@ -155,6 +161,8 @@ def prepare_names(input_file, meta_info, channel_names=[], split_file=False, ext
         channel_names - list of str, customized names from user input
         split_file - bool, one file for each channel
         extension - str, the file extension name is also the format code
+        append_index - str, index string to append to file name
+        xchange_basename - str, the new basename
     
     [Returns]:
         new_filename - str or list, depends on split file or not
@@ -176,20 +184,23 @@ def prepare_names(input_file, meta_info, channel_names=[], split_file=False, ext
         if new_chnames[n] == str():
             new_chnames[n] = meta['name'].split('/')[-1]
 
-    # index to the first channel
-    idxch1 = 1 if meta_info[0]['name'] == 'time' else 0
-    # assumed the 1st channel has recording start time info
-    rectime_base = meta_info[idxch1]['wf_start_time'].strftime('%Y%m%d-%H%M%S')
-    # base name for output file, with parent path, without suffix extension
-    file_base = str(Path(input_file).parent.joinpath(Path(input_file).stem))
+    if append_index == '':
+        # index to the first channel
+        idxch1 = 1 if meta_info[0]['name'] == 'time' else 0
+        # assumed the 1st channel has recording start time info
+        timecode = meta_info[idxch1]['wf_start_time'].strftime('%Y%m%d-%H%M%S')
+    else:
+        timecode = append_index
+    # build the new path name
+    parentpath = Path(input_file).parent
+    basename = str(Path(input_file).stem) if xchange_basename == '' else xchange_basename
     if split_file:
         new_filename = [str()] * len(meta_info)
         for n, meta in enumerate(meta_info):
-            rectime = meta['wf_start_time'].strftime('%Y%m%d-%H%M%S') if 'wf_start_time' in meta.keys() else rectime_base
-            new_filename[n] = '{}-{}-{}.{}'.format(file_base, rectime, new_chnames[n], extension)
+            new_filename[n] = str(parentpath.joinpath('{}-{}-{}.{}'.format(new_chnames[n], basename, timecode, extension)))
     else:
         # append datetime and suffix extension
-        new_filename = '{}-{}.{}'.format(file_base, rectime_base, extension)
+        new_filename = str(parentpath.joinpath('{}-{}.{}'.format(basename, timecode, extension)))
 
     return new_filename, new_chnames
 
@@ -323,29 +334,30 @@ def write_array2file(array, output_name, channel_names=[], dozip=False, sampling
 if __name__ == "__main__":
     import argparse
     import time
+    from natsort import natsorted
 
     # setup options
     parser = argparse.ArgumentParser(prog='tdms2x', description='''
         *tdms2x* convert NI TDMS file to various other scientific data formats.
         ''')
-    parser.add_argument('-v','--version', action='version', version='%(prog)s 2020-09-20',
-                        help='Display version number and exit.')
     parser.add_argument('-d','--display_info', action='store_true',
                         help='''Display meta info of the TDMS file to console, also save to file if
                         -m option is also specified.''')
-    parser.add_argument('input_path', metavar='PATH', type=str,
-                        help='Path to a TDMS file or a folder contains plenty of it.')
+    parser.add_argument('-i','--index_append', action='store_true',
+                        help='Append index instead of recording time to the output file name.')
     parser.add_argument('-m','--meta_save2file', action='store_true',
                         help='Also save meta file to a .info file.')
+    parser.add_argument('-s','--split_file', action='store_true',
+                        help='Split channels to save as separate files.')
+    parser.add_argument('-t','--time_track', action='store_true',
+                        help='The output shall contain an additional time track column if available.')
+    parser.add_argument('-v','--version', action='version', version='%(prog)s 2020-09-22',
+                        help='Display version number and exit.')
+    parser.add_argument('-z','--zip_compression', action='store_true',
+                        help='Compress the output file if the output format supports this option.')
     parser.add_argument('-c','--channel_selection', nargs='+', type=int, metavar=('0','1'),
                         help='''Option to output only those channels with index specified in the list.
                         Zero is the index to the first channel, and default is all selected.''')
-    parser.add_argument('-t','--time_track', action='store_true',
-                        help='The output shall contain an additional time track column if available.')
-    parser.add_argument('-z','--zip_compression', action='store_true',
-                        help='Compress the output file if the output format supports this option.')
-    parser.add_argument('-s','--split_file', action='store_true',
-                        help='Split channels to save as separate files.')
     parser.add_argument('-n','--name_channel', nargs='+', type=str, metavar=('x','y'),
                         help='''Option to specify header names in the order of selected channels.
                         Default is to use the name from TDMS meta info. If option -t is specified,
@@ -357,6 +369,10 @@ if __name__ == "__main__":
                         -r option shall explicit specify and -s option is auto implied.''')
     parser.add_argument('-r','--rate_sampling', type=int, metavar='Hz', default=100000,
                         help='The sampling rate in Hz for .wav file format.')
+    parser.add_argument('-x','--xchange_basename', type=str, metavar='NAME', default='',
+                        help='Replace original basename with a meaningful name.')
+    parser.add_argument('input_path', metavar='PATH', type=str,
+                        help='Path to a TDMS file or a folder contains plenty of it.')
 
     # parse command line arguments
     args = parser.parse_args()
@@ -376,6 +392,19 @@ if __name__ == "__main__":
             sys.exit('[Error]: file {} is not a TDMS file.'.format(args.input_path))
     else:
         sys.exit('[Error]: path {} is not a file or folder.'.format(args.input_path))
+
+    # force channel splitting for wav file format
+    if args.output_format == 'wav':
+        args.split_file = True
+    # ignore time track when splitting
+    if args.split_file:
+        args.time_track = False
+
+    index_width = 1
+    # sorting the file names, naturally
+    if len(tdms_files) > 1:
+        tdms_files = natsorted(tdms_files)
+        index_width = len(str(len(tdms_files)))
 
     result_code = 0
     # iterating over all files
@@ -398,9 +427,18 @@ if __name__ == "__main__":
             data, meta = read_tdms2array(input_file, args.channel_selection, args.time_track)
             # get proper output filename and header names
             channel_names = list() if args.name_channel is None else args.name_channel
-            if args.output_format == 'wav':
-                args.split_file = True
-            file_name, channel_names = prepare_names(input_file, meta, channel_names, args.split_file, args.output_format)
+            # append index to the name or not
+            fmtstr = '{:0'+ str(index_width) +'}'
+            append_index = fmtstr.format(n+1) if args.index_append else str()
+            # prepare output file name
+            file_name, channel_names = prepare_names(input_file,
+                                                     meta,
+                                                     channel_names,
+                                                     args.split_file,
+                                                     args.output_format,
+                                                     append_index,
+                                                     args.xchange_basename)
+            print('    write to file(s):', file_name)
             write_array2file(data, file_name, channel_names, args.zip_compression, args.rate_sampling)
             print(' -- #{} file processing time {}sec.\n'.format(n+1, time.time() - t_start))
 
